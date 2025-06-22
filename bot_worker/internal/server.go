@@ -75,11 +75,11 @@ func (b *BotWorkerRunner) Run() error {
 	return nil
 }
 
-func (b *BotWorkerRunner) handleMessage(ctx *natsconsumer.Context, msg *nats.Msg) {
+func (b *BotWorkerRunner) handleMessage(ctx *natsconsumer.Context, msg *nats.Msg) natsconsumer.HandleResult {
 	// 处理消息的逻辑
 	b.logger.Info().
 		Str("subject", msg.Subject).
 		Str("data", string(msg.Data)).
 		Msg("Received message")
-	msg.Ack() // 确认消息
+	return natsconsumer.HandleResultAck
 }

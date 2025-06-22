@@ -1,4 +1,3 @@
-
 package natsconsumer
 
 import (
@@ -13,9 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const natsUrl = "nats://192.168.242.2:4222"
+
 func TestNormalConsumer(t *testing.T) {
 	// 构造生产者
-	nc, err := nats.Connect("nats://localhost:4222")
+	nc, err := nats.Connect(natsUrl)
 	require.NoError(t, err)
 	defer nc.Drain()
 
@@ -50,7 +51,7 @@ func TestNormalConsumer(t *testing.T) {
 
 	logger := zerolog.New(zerolog.NewTestWriter(t)).Level(zerolog.DebugLevel)
 	consumer := NewConsumer(&Config{
-		NatsURL:      "nats://localhost:4222",
+		NatsURL:      natsUrl,
 		Concurrency:  2,
 		Subject:      "test.subject",
 		ConsumerName: "TEST_CONSUMER",
@@ -60,7 +61,7 @@ func TestNormalConsumer(t *testing.T) {
 	ch := make(chan string, 10)
 	var wg sync.WaitGroup
 	wg.Add(10)
-	consumer.SetHandler(func(ctx *Context, msg *nats.Msg) {
+	consumer.SetHandler(func(ctx *Context, msg *nats.Msg) HandleResult {
 		defer wg.Done()
 
 		ctx.Logger.Debug().Str("nats_msg_data", string(msg.Data)).Msg("received message")
@@ -68,8 +69,7 @@ func TestNormalConsumer(t *testing.T) {
 
 		// 模拟处理时间
 		time.Sleep(50 * time.Millisecond)
-		// 确认消息
-		msg.Ack()
+		return HandleResultAck
 	})
 
 	require.NoError(t, consumer.Start())
@@ -82,7 +82,7 @@ func TestNormalConsumer(t *testing.T) {
 
 func TestNakConsumer(t *testing.T) {
 	// 构造生产者
-	nc, err := nats.Connect("nats://localhost:4222")
+	nc, err := nats.Connect(natsUrl)
 	require.NoError(t, err)
 	defer nc.Drain()
 
@@ -114,7 +114,7 @@ func TestNakConsumer(t *testing.T) {
 
 	logger := zerolog.New(zerolog.NewTestWriter(t)).Level(zerolog.DebugLevel)
 	consumer := NewConsumer(&Config{
-		NatsURL:      "nats://localhost:4222",
+		NatsURL:      natsUrl,
 		Concurrency:  2,
 		Subject:      "test.subject",
 		ConsumerName: "TEST_CONSUMER",
@@ -126,7 +126,7 @@ func TestNakConsumer(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	consumer.SetHandler(func(ctx *Context, msg *nats.Msg) {
+	consumer.SetHandler(func(ctx *Context, msg *nats.Msg) HandleResult {
 		counter.Add(1)
 
 		metadata, err := msg.Metadata()
@@ -142,12 +142,13 @@ func TestNakConsumer(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 
 		if metadata.NumDelivered < 3 {
-			msg.Nak() // 让第一次，第二次都重试
+			// 让第一次，第二次都重试
+			return HandleResultNak
 		} else {
 			// 第三次成功
 			require.Equal(t, metadata.NumDelivered, uint64(3))
-			msg.Ack()
 			wg.Done() // 只有在成功处理后才结束等待
+			return HandleResultAck
 		}
 	})
 

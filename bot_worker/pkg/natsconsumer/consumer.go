@@ -16,7 +16,15 @@ type Context struct {
 	Logger   *zerolog.Logger // 日志记录器，包含请求ID等上下文信息
 }
 
-type HandlerFunc func(ctx *Context, msg *nats.Msg)
+type HandleResult string
+
+const (
+	HandleResultAck  HandleResult = "ACK"  // 处理成功，消息已确认
+	HandleResultNak  HandleResult = "NAK"  // 处理失败，消息重新入队
+	HandleResultTerm HandleResult = "TERM" // 处理失败，消息丢弃
+)
+
+type HandlerFunc func(ctx *Context, msg *nats.Msg) HandleResult
 
 type Consumer struct {
 	// New 时候一次性设置所有
@@ -198,11 +206,25 @@ func (c *Consumer) consumerWorker(ctx context.Context, js nats.JetStreamContext,
 						}
 					}
 				}()
-				c.handler(&Context{
+				result := c.handler(&Context{
 					Context:  logger.WithContext(ctx),
 					WorkerID: workerID,
 					Logger:   logger,
 				}, msg)
+				switch result {
+				case HandleResultAck:
+					if err := msg.Ack(); err != nil {
+						logger.Error().Err(err).Msg("Failed to Ack message")
+					}
+				case HandleResultNak:
+					if err := msg.Nak(); err != nil {
+						logger.Error().Err(err).Msg("Failed to Nak message")
+					}
+				case HandleResultTerm:
+					if err := msg.Term(); err != nil {
+						logger.Error().Err(err).Msg("Failed to Term message")
+					}
+				}
 			}()
 		}
 	}
