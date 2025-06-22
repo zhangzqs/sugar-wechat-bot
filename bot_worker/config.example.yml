@@ -1,0 +1,39 @@
+# 测试服务
+hello_world_runner:
+  logger:
+    log_file: "logs/hello_world_runner.log"
+    log_console: true
+    level: "DEBUG"
+    local_time: true
+  listen_addr: "127.0.0.1:28081"
+
+# 微信机器人服务
+wxauto_runner:
+  logger:
+    log_file: "logs/wxauto_runner.log"
+    log_console: true
+    level: "DEBUG"
+    local_time: true
+
+  producer:
+    nats_url: "nats://192.168.242.2:4222"
+    subject: "BOTS.send_msgs"
+
+  consumer:
+    nats_url: "nats://192.168.242.2:4222"
+    concurrency: 2
+    subject: "BOTS.received_msgs"
+    consumer_name: "WX_MSGS_CONSUMER"
+
+  react_agent:
+    system_prompt: "你是一个人工智能助手，你有一些工具可以调用，请根据用户需求调用相关工具，最终言简意赅回答用户结果"
+    model:
+      base_url: "https://api.deepseek.com"
+      api_key: "<API_KEY>"
+      model: "deepseek-chat"
+
+  user_message_template: |
+    请你作为一个微信机器人，请处理以下消息：
+    消息内容：{{.Content}}
+    发送人：{{.Sender}}
+    发送人备注: {{.SenderRemark}}

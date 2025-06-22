@@ -1,6 +1,7 @@
 package natsconsumer
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -48,15 +49,16 @@ func TestNormalConsumer(t *testing.T) {
 		_, err = js.Publish("test.subject", []byte(msg))
 		require.NoError(t, err)
 	}
-
+	ctx := context.Background()
 	logger := zerolog.New(zerolog.NewTestWriter(t)).Level(zerolog.DebugLevel)
-	consumer := NewConsumer(&Config{
+	ctx = logger.WithContext(ctx)
+	consumer := NewConsumer(ctx, &Config{
 		NatsURL:      natsUrl,
 		Concurrency:  2,
 		Subject:      "test.subject",
 		ConsumerName: "TEST_CONSUMER",
 		PullMaxWait:  1 * time.Second,
-	}, &logger)
+	})
 
 	ch := make(chan string, 10)
 	var wg sync.WaitGroup
@@ -112,14 +114,16 @@ func TestNakConsumer(t *testing.T) {
 	_, err = js.Publish("test.subject", []byte("test nak message"))
 	require.NoError(t, err)
 
+	ctx := context.Background()
 	logger := zerolog.New(zerolog.NewTestWriter(t)).Level(zerolog.DebugLevel)
-	consumer := NewConsumer(&Config{
+	ctx = logger.WithContext(ctx)
+	consumer := NewConsumer(ctx, &Config{
 		NatsURL:      natsUrl,
 		Concurrency:  2,
 		Subject:      "test.subject",
 		ConsumerName: "TEST_CONSUMER",
 		PullMaxWait:  1 * time.Second,
-	}, &logger)
+	})
 
 	var counter atomic.Int64
 

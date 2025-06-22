@@ -19,7 +19,7 @@ type Runner interface {
 func Run(svrs ...Runner) {
 	logger := zerolog.DefaultContextLogger
 	if logger == nil {
-		logger1 := zerolog.New(os.Stdout).With().Timestamp().Logger().Level(zerolog.InfoLevel)
+		logger1 := zerolog.New(zerolog.NewConsoleWriter()).With().Timestamp().Logger().Level(zerolog.InfoLevel)
 		logger = &logger1
 	}
 	{ // 只统计非 nil 服务

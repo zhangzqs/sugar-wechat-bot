@@ -41,14 +41,14 @@ type Consumer struct {
 	wg *sync.WaitGroup
 }
 
-func NewConsumer(cfg *Config, logger *zerolog.Logger) *Consumer {
-	logger1 := logger.With().
+func NewConsumer(ctx context.Context, cfg *Config) *Consumer {
+	logger := zerolog.Ctx(ctx).With().
 		Str("consumer_name", cfg.ConsumerName).
 		Str("subject", cfg.Subject).
 		Logger()
-	ctx, cancelFunc := context.WithCancel(logger1.WithContext(context.Background()))
+	ctx, cancelFunc := context.WithCancel(logger.WithContext(ctx))
 	return &Consumer{
-		logger:     &logger1,
+		logger:     &logger,
 		ctx:        ctx,
 		cfg:        cfg,
 		cancelFunc: cancelFunc,
@@ -198,14 +198,21 @@ func (c *Consumer) consumerWorker(ctx context.Context, js nats.JetStreamContext,
 			}
 
 			func() {
-				defer func() {
-					if r := recover(); r != nil { // 如果recover捕获到panic，则记录错误并Nak消息
-						logger.Error().Interface("panic", r).Msgf("Recovered from panic")
-						if err := msg.Nak(); err != nil {
-							logger.Error().Err(err).Msg("Failed to Nak message after panic")
-						}
-					}
-				}()
+				// defer func() {
+				// 	if r := recover(); r != nil { // 如果recover捕获到panic，则记录错误并Nak消息
+				// 		switch r := r.(type) {
+				// 		case error:
+				// 			logger.Error().Err(r).Msg("Recovered from panic in handler")
+				// 		case string:
+				// 			logger.Error().Msgf("Recovered from panic: %s", r)
+				// 		default:
+				// 			logger.Error().Interface("panic", r).Msgf("Recovered from panic")
+				// 		}
+				// 		if err := msg.Nak(); err != nil {
+				// 			logger.Error().Err(err).Msg("Failed to Nak message after panic")
+				// 		}
+				// 	}
+				// }()
 				result := c.handler(&Context{
 					Context:  logger.WithContext(ctx),
 					WorkerID: workerID,
