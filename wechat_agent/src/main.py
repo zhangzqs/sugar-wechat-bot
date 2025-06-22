@@ -4,6 +4,7 @@ import time
 from pydantic import BaseModel
 import nats
 from nats.aio.client import Client as NATS
+from nats.js import JetStreamContext
 from logger import LoggerConfig, init_logger
 from config import load_config_from_args
 import logging
@@ -36,14 +37,13 @@ async def on_wxchat_message(
     wxmsg: BaseMessage, # 微信消息对象
     wxchat: str, # 微信会话名称
     subject: str, # 期望转发到主题
-    nc: NATS,
+    js: JetStreamContext,
 ):
     print(f'收到消息：[{wxmsg.type} {wxmsg.attr}]{wxchat} - {wxmsg.content}')
-
     if isinstance(wxmsg, FriendMessage):
         logging.info(f"好友消息: {wxmsg.content} from {wxmsg.sender} ({wxmsg.sender_remark})")
         
-        await nc.publish(
+        await js.publish(
             subject=subject,
             payload=json.dumps({
                 'type': wxmsg.type, # 消息内容类型
@@ -72,6 +72,7 @@ async def main():
     init_logger(cfg.logger, logging.getLogger())
     logging.info("WeChat Agent Started")
     nc: NATS = await nats.connect(cfg.nats_url)
+    js: JetStreamContext = nc.jetstream()
     logging.info(f"Connected to NATS at {cfg.nats_url}")
     
     loop = asyncio.get_event_loop()
@@ -82,14 +83,23 @@ async def main():
         wx.AddListenChat(
             nickname=chat, 
             callback=lambda msg, chat: loop.call_soon_threadsafe(asyncio.create_task, 
-                on_wxchat_message(msg, chat, topic, nc)
+                on_wxchat_message(msg, chat, topic, js)
             )
         )
         logging.info(f"Listening to chat '{chat}' and publishing to topic '{topic}'")
     logging.info("WeChat Agent is running. Press Ctrl+C to exit.")
+    
+    ps = await js.pull_subscribe(
+        subject="",
+        durable="",
+    )
+    
     try:
         while True:
-            await asyncio.sleep(1)  
+            msg = await ps.fetch(batch=1, timeout=1)
+            for m in msg:
+                logging.info(f"Received message from NATS: {m.data.decode('utf-8')}")
+                await m.ack()
     except KeyboardInterrupt:
         logging.info("WeChat Agent stopped by user.")
     finally:
