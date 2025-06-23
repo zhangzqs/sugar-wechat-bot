@@ -7,6 +7,8 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/expr-lang/expr"
+	"github.com/expr-lang/expr/vm"
 	"github.com/nats-io/nats.go"
 	"github.com/zhangzqs/sugar-wechat-bot/bot_worker/pkg/natsconsumer"
 	"github.com/zhangzqs/sugar-wechat-bot/bot_worker/pkg/natsproducer"
@@ -16,11 +18,12 @@ import (
 )
 
 type Config struct {
-	Logger              zerologger.Config   `yaml:"logger"`                // 日志配置
-	Producer            natsproducer.Config `yaml:"producer"`              // NATS 生产者配置
-	Consumer            natsconsumer.Config `yaml:"consumer"`              // NATS 消费者配置
-	ReactAgent          reactagent.Config   `yaml:"react_agent"`           // React Agent 配置
-	UserMessageTemplate string              `yaml:"user_message_template"` // 用户消息模板
+	Logger                 zerologger.Config   `yaml:"logger"`                    // 日志配置
+	Producer               natsproducer.Config `yaml:"producer"`                  // NATS 生产者配置
+	Consumer               natsconsumer.Config `yaml:"consumer"`                  // NATS 消费者配置
+	ReactAgent             reactagent.Config   `yaml:"react_agent"`               // React Agent 配置
+	UserMessageTemplate    string              `yaml:"user_message_template"`     // 用户消息模板
+	UserMessageReplyFilter string              `yaml:"user_message_reply_filter"` // 用户消息回复过滤器，使用 expr 语言编写的过滤规则
 }
 
 var _ runner.Runner = (*WxAutoRunner)(nil)
@@ -31,6 +34,7 @@ type WxAutoRunner struct {
 	consumer            *natsconsumer.Consumer
 	reactAgent          *reactagent.ReactAgent
 	userMessageTemplate *template.Template // 用户消息模板
+	msgFilter           *vm.Program        // 消息过滤器，使用 expr 语言编写的过滤规则
 }
 
 func NewWxAutoRunner(cfg *Config) (*WxAutoRunner, error) {
@@ -67,12 +71,24 @@ func NewWxAutoRunner(cfg *Config) (*WxAutoRunner, error) {
 		logger.Error().Err(err).Msg("Failed to parse template")
 		return nil, err
 	}
+
+	// 编译消息过滤器
+	msgFilter, err := expr.Compile(
+		cfg.UserMessageReplyFilter,
+		expr.Env(ReceivedMessage{}),
+		expr.AsBool(),
+	)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to compile message filter")
+		return nil, err
+	}
 	return &WxAutoRunner{
 		logger:              logger,
 		consumer:            consumer,
 		producer:            producer,
 		reactAgent:          reactAgent,
 		userMessageTemplate: tpl,
+		msgFilter:           msgFilter,
 	}, nil
 }
 
@@ -123,11 +139,23 @@ func (b *WxAutoRunner) handleMessage(ctx *natsconsumer.Context, natsMsg *nats.Ms
 		b.logger.Warn().Str("attr", string(msg.Attr)).Msg("Unsupported message attribute, skipping")
 		return natsconsumer.HandleResultTerm
 	}
-	if msg.Type != MessageTypeText {
-		b.logger.Warn().Str("type", string(msg.Type)).Msg("Unsupported message type, skipping")
+	// if msg.Type != MessageTypeText {
+	// 	b.logger.Warn().Str("type", string(msg.Type)).Msg("Unsupported message type, skipping")
+	// 	return natsconsumer.HandleResultTerm
+	// }
+
+	// 消息过滤器
+	ret, err := expr.Run(b.msgFilter, msg)
+	if err != nil {
+		b.logger.Error().Err(err).Msg("Failed to run message filter")
 		return natsconsumer.HandleResultTerm
 	}
+	if ret == nil || !ret.(bool) {
+		b.logger.Info().Msg("Message does not match filter, skipping")
+		return natsconsumer.HandleResultAck
+	}
 
+	// 执行用户消息模板
 	buf := bytes.Buffer{}
 	if err := b.userMessageTemplate.Execute(&buf, msg); err != nil {
 		b.logger.Error().Err(err).Msg("Failed to execute template")

@@ -5,7 +5,7 @@ logger:
 nats_url: nats://192.168.242.2:4222
 
 chat_transfer_config:
-  - chat: "机器人儿"
+  - chat: "梦中coding项目事故调查"
     subject: "BOTS.received_msgs"
   - chat: "zzq"
     subject: "BOTS.received_msgs"

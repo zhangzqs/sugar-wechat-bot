@@ -58,6 +58,7 @@ type ReceivedMessage struct {
 	Content      string      `json:"content"`       // 消息内容
 	Sender       string      `json:"sender"`        // 发送者
 	SenderRemark string      `json:"sender_remark"` // 发送者备注
+	Info         ChatInfo    `json:"info"`          // 会话信息
 }
 
 type SendMessage struct {

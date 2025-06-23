@@ -17,9 +17,17 @@ nats stream add BOTS_STREAM \
     --max-msg-size=-1 \
     --discard=old
 
-# 创建消费者
+# 创建消息接收器
 nats consumer add BOTS_STREAM WX_MSGS_CONSUMER \
     --filter BOTS.received_msgs \
+    --ack explicit \
+    --pull \
+    --deliver all \
+    --max-deliver=-1
+
+# 创建消息发送器
+nats consumer add BOTS_STREAM WX_MSGS_SENDER_CONSUMER \
+    --filter BOTS.send_msgs \
     --ack explicit \
     --pull \
     --deliver all \

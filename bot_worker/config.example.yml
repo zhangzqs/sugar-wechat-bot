@@ -33,7 +33,23 @@ wxauto_runner:
       model: "deepseek-chat"
 
   user_message_template: |
-    请你作为一个微信机器人，请处理以下消息：
-    消息内容：{{.Content}}
-    发送人：{{.Sender}}
-    发送人备注: {{.SenderRemark}}
+    你收到了消息：
+      消息ID：{{.ID}}
+      消息类型：{{.Type}}
+      消息属性：{{.Attr}}
+      消息内容：{{.Content}}
+      发送人：{{.Sender}}
+      发送人备注：{{.SenderRemark}}
+      会话类型：{{.Info.ChatType}}
+      会话名称：{{.Info.ChatName}}
+      {{- if .Info.GroupMemberCount}}
+      群成员数量：{{.Info.GroupMemberCount}}
+      {{- end}}
+    请你作为一个微信机器人，以第一人称来处理以上消息，并给出简洁的回复。
+
+  # 基于 Expr 语言的用户消息过滤器
+  user_message_reply_filter: |
+    string(Type) == "text" && 
+    Content != "" && 
+    len(Content) < 100 &&
+    Content contains "bot"

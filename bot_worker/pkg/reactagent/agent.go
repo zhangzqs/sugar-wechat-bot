@@ -67,7 +67,7 @@ func New(ctx context.Context, cfg *Config) (ret *ReactAgent, err error) {
 		allTools = append(allTools, mcpTools...)
 	}
 
-	allTools = append(allTools, &ListTodoTool{})
+	allTools = append(allTools, &NoUsedTool{})
 
 	agent, err := react.NewAgent(ctx, &react.AgentConfig{
 		ToolCallingModel: chatModel,
@@ -103,27 +103,19 @@ func (r *ReactAgent) Question(ctx context.Context, question string) (string, err
 		return "", err
 	}
 
-	logger.Info().Str("answer", answer.String()).Msg("Question processed successfully")
-	return answer.String(), nil
+	logger.Info().Str("answer", answer.Content).Msg("Question processed successfully")
+	return answer.Content, nil
 }
 
-type ListTodoTool struct{}
+type NoUsedTool struct{}
 
-func (lt *ListTodoTool) Info(ctx context.Context) (*schema.ToolInfo, error) {
+func (lt *NoUsedTool) Info(ctx context.Context) (*schema.ToolInfo, error) {
 	return &schema.ToolInfo{
-		Name: "list_todo",
-		Desc: "List all todo items",
-		ParamsOneOf: schema.NewParamsOneOfByParams(map[string]*schema.ParameterInfo{
-			"finished": {
-				Desc:     "filter todo items if finished",
-				Type:     schema.Boolean,
-				Required: false,
-			},
-		}),
+		Name: "NoUsedTool",
+		Desc: "这仅是一个占位符工具，请不要调用它",
 	}, nil
 }
 
-func (lt *ListTodoTool) InvokableRun(ctx context.Context, argumentsInJSON string, opts ...tool.Option) (string, error) {
-	// Mock调用逻辑
-	return `{"todos": [{"id": "1", "content": "在2024年12月10日之前完成Eino项目演示文稿的准备工作", "started_at": 1717401600, "deadline": 1717488000, "done": false}]}`, nil
+func (lt *NoUsedTool) InvokableRun(ctx context.Context, argumentsInJSON string, opts ...tool.Option) (string, error) {
+	return "", nil
 }

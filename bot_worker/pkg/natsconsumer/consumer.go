@@ -175,7 +175,6 @@ func (c *Consumer) consumerWorker(ctx context.Context, js nats.JetStreamContext,
 		msgs, err := sub.Fetch(1, nats.MaxWait(c.cfg.PullMaxWait))
 		if err != nil {
 			if errors.Is(err, nats.ErrTimeout) {
-				logger.Debug().Msg("No messages received, continuing")
 				continue
 			}
 			logger.Error().Err(err).Msg("Failed to fetch messages")

@@ -7,6 +7,7 @@ from nats.aio.client import Client as NATS
 from nats.js import JetStreamContext
 from logger import LoggerConfig, init_logger
 from config import load_config_from_args
+from lru import LRUCache
 import logging
 import asyncio
 import json
@@ -31,6 +32,10 @@ class Config(BaseModel):
     
     chat_transfer_config: list[ChatTransferConfig] = []
     """某个微信会话中的消息转发到NATS的主题的映射"""
+    
+    subject_send_msgs: str = "BOTS.send_msgs"
+
+lru_msg_cache = LRUCache[str, BaseMessage](capacity=30)
 
 # 微信消息处理函数
 async def on_wxchat_message(
@@ -42,7 +47,7 @@ async def on_wxchat_message(
     print(f'收到消息：[{wxmsg.type} {wxmsg.attr}]{wxchat} - {wxmsg.content}')
     if isinstance(wxmsg, FriendMessage):
         logging.info(f"好友消息: {wxmsg.content} from {wxmsg.sender} ({wxmsg.sender_remark})")
-        
+        lru_msg_cache.put(wxmsg.id, wxmsg)
         await js.publish(
             subject=subject,
             payload=json.dumps({
@@ -90,16 +95,31 @@ async def main():
     logging.info("WeChat Agent is running. Press Ctrl+C to exit.")
     
     ps = await js.pull_subscribe(
-        subject="",
-        durable="",
+        subject="BOTS.send_msgs ",
+        durable="WX_MSGS_SENDER_CONSUMER",
     )
     
     try:
         while True:
-            msg = await ps.fetch(batch=1, timeout=1)
-            for m in msg:
-                logging.info(f"Received message from NATS: {m.data.decode('utf-8')}")
-                await m.ack()
+            try:
+                msgs = await ps.fetch(batch=1, timeout=3)
+                for raw_msg in msgs:
+                    logging.info(f"Received message from NATS: {raw_msg.data.decode('utf-8')}")
+                    msg = json.loads(raw_msg.data.decode('utf-8'))  
+                    if msg['reply_to_msg_id'] in lru_msg_cache:
+                        m: FriendMessage = lru_msg_cache.get(msg['reply_to_msg_id'])
+                        m.quote(
+                            text=msg['content'],
+                        )
+                        await raw_msg.ack()
+                    else:
+                        await raw_msg.term()
+                    #     wx.SendMsg(
+                    #         msg=msg['content'],
+                    #         who=msg['send_to_chat'],
+                    #     )
+            except asyncio.TimeoutError:
+                continue
     except KeyboardInterrupt:
         logging.info("WeChat Agent stopped by user.")
     finally:
