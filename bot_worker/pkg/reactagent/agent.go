@@ -78,6 +78,12 @@ func New(ctx context.Context, cfg *Config) (ret *ReactAgent, err error) {
 	allTools = append(allTools, &NoUsedTool{})
 
 	agent, err := react.NewAgent(ctx, &react.AgentConfig{
+		MessageModifier: func(ctx context.Context, input []*schema.Message) []*schema.Message {
+			res := make([]*schema.Message, 0, len(input)+1)
+			res = append(res, schema.SystemMessage(cfg.SystemPrompt))
+			res = append(res, input...)
+			return res
+		},
 		MaxStep:          10,
 		ToolCallingModel: chatModel,
 		ToolsConfig: compose.ToolsNodeConfig{
