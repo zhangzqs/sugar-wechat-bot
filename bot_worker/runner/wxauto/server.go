@@ -163,8 +163,13 @@ func (b *WxAutoRunner) handleMessage(ctx *natsconsumer.Context, natsMsg *nats.Ms
 	}
 	answer, err := b.reactAgent.Question(ctx.Context, buf.String())
 	if err != nil {
-		b.logger.Error().Err(err).Msg("Failed to get answer from ReactAgent")
-		return natsconsumer.HandleResultTerm
+		if strings.Contains(err.Error(), "exceeded max steps") {
+			b.logger.Warn().Err(err).Msg("ReactAgent exceeded max steps, skipping message")
+			answer = "抱歉，我无法处理这个请求，当前问题过于复杂"
+		} else {
+			b.logger.Error().Err(err).Msg("Failed to get answer from ReactAgent")
+			answer = "破防，遇到了一些无法处理的错误: " + err.Error()
+		}
 	}
 	// 将回答转换为 JSON
 	answerData, _ := json.Marshal(SendMessage{

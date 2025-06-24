@@ -11,6 +11,7 @@ import (
 	"github.com/cloudwego/eino/flow/agent/react"
 	"github.com/cloudwego/eino/schema"
 	"github.com/mark3labs/mcp-go/client"
+	"github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/rs/zerolog"
 )
@@ -36,11 +37,18 @@ func New(ctx context.Context, cfg *Config) (ret *ReactAgent, err error) {
 
 	// 初始化所有MCP工具
 	for _, mcpServerCfg := range cfg.MCPTools {
-		cli, err := client.NewSSEMCPClient(mcpServerCfg.BaseURL)
+		tp, err := transport.NewSSE(mcpServerCfg.BaseURL)
 		if err != nil {
-			logger.Error().Err(err).Str("mcp_server", mcpServerCfg.Name).Msg("failed to create MCP client")
+			logger.Error().Err(err).Str("mcp_server", mcpServerCfg.Name).
+				Msg("failed to create SSE transport for MCP server")
 			return nil, err
 		}
+		if err := tp.Start(ctx); err != nil {
+			logger.Error().Err(err).Str("mcp_server", mcpServerCfg.Name).
+				Msg("failed to start SSE transport for MCP server")
+			return nil, err
+		}
+		cli := client.NewClient(tp)
 		// 初始化MCP请求
 		initRequest := mcp.InitializeRequest{
 			Params: mcp.InitializeParams{
@@ -70,6 +78,7 @@ func New(ctx context.Context, cfg *Config) (ret *ReactAgent, err error) {
 	allTools = append(allTools, &NoUsedTool{})
 
 	agent, err := react.NewAgent(ctx, &react.AgentConfig{
+		MaxStep:          10,
 		ToolCallingModel: chatModel,
 		ToolsConfig: compose.ToolsNodeConfig{
 			Tools: allTools,

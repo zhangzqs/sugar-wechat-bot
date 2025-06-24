@@ -9,3 +9,7 @@ chat_transfer_config:
     subject: "BOTS.received_msgs"
   - chat: "zzq"
     subject: "BOTS.received_msgs"
+  - chat: "吃饭"
+    subject: "BOTS.received_msgs"
+  - chat: "enfp们的sit秘密基地"
+    subject: "BOTS.received_msgs"
