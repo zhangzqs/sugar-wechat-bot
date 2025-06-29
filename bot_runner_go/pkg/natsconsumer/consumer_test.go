@@ -52,7 +52,7 @@ func TestNormalConsumer(t *testing.T) {
 	ctx := context.Background()
 	logger := zerolog.New(zerolog.NewTestWriter(t)).Level(zerolog.DebugLevel)
 	ctx = logger.WithContext(ctx)
-	consumer := NewConsumer(ctx, &Config{
+	consumer := New(&Config{
 		NatsURL:      natsUrl,
 		Concurrency:  2,
 		Subject:      "test.subject",
@@ -63,20 +63,19 @@ func TestNormalConsumer(t *testing.T) {
 	ch := make(chan string, 10)
 	var wg sync.WaitGroup
 	wg.Add(10)
-	consumer.SetHandler(func(ctx *Context, msg *nats.Msg) HandleResult {
+	handler := func(ctx context.Context, msg *nats.Msg) HandleResult {
 		defer wg.Done()
+		logger := zerolog.Ctx(ctx)
 
-		ctx.Logger.Debug().Str("nats_msg_data", string(msg.Data)).Msg("received message")
+		logger.Debug().Str("nats_msg_data", string(msg.Data)).Msg("received message")
 		ch <- string(msg.Data)
 
 		// 模拟处理时间
 		time.Sleep(50 * time.Millisecond)
 		return HandleResultAck
-	})
+	}
 
-	require.NoError(t, consumer.Start())
-	defer consumer.Close()
-
+	go consumer.Run(ctx, handler)
 	wg.Wait()
 
 	require.Len(t, ch, 10)
@@ -117,7 +116,7 @@ func TestNakConsumer(t *testing.T) {
 	ctx := context.Background()
 	logger := zerolog.New(zerolog.NewTestWriter(t)).Level(zerolog.DebugLevel)
 	ctx = logger.WithContext(ctx)
-	consumer := NewConsumer(ctx, &Config{
+	consumer := New(&Config{
 		NatsURL:      natsUrl,
 		Concurrency:  2,
 		Subject:      "test.subject",
@@ -130,13 +129,14 @@ func TestNakConsumer(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	consumer.SetHandler(func(ctx *Context, msg *nats.Msg) HandleResult {
+	handler := func(ctx context.Context, msg *nats.Msg) HandleResult {
+		logger := zerolog.Ctx(ctx)
 		counter.Add(1)
 
 		metadata, err := msg.Metadata()
 		require.NoError(t, err)
 
-		ctx.Logger.Debug().
+		logger.Debug().
 			Str("nats_msg_data", string(msg.Data)).
 			Any("nats_msg_metadata", metadata).
 			Uint64("nats_num_delivered", metadata.NumDelivered).
@@ -154,11 +154,9 @@ func TestNakConsumer(t *testing.T) {
 			wg.Done() // 只有在成功处理后才结束等待
 			return HandleResultAck
 		}
-	})
+	}
 
-	require.NoError(t, consumer.Start())
-	defer consumer.Close()
-
+	go consumer.Run(ctx, handler)
 	wg.Wait()
 	require.Equal(t, int64(3), counter.Load())
 }

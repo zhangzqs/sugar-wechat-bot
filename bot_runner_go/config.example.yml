@@ -1,20 +1,16 @@
+# 日志配置
+logger:
+  log_file: "logs/hello_world_runner.log"
+  log_console: true
+  level: "DEBUG"
+  local_time: true
+
 # 测试服务
 hello_world_runner:
-  logger:
-    log_file: "logs/hello_world_runner.log"
-    log_console: true
-    level: "DEBUG"
-    local_time: true
   listen_addr: "127.0.0.1:28081"
 
 # 微信机器人服务
 wxauto_runner:
-  logger:
-    log_file: "logs/wxauto_runner.log"
-    log_console: true
-    level: "DEBUG"
-    local_time: true
-
   producer:
     nats_url: "nats://192.168.242.2:4222"
     subject: "BOTS.send_msgs"
@@ -24,6 +20,7 @@ wxauto_runner:
     concurrency: 2
     subject: "BOTS.received_msgs"
     consumer_name: "WX_MSGS_CONSUMER"
+    pull_max_wait: 1s
 
   react_agent:
     system_prompt: "你是一个人工智能助手，你有一些工具可以调用，请根据用户需求调用相关工具，最终言简意赅回答用户结果"

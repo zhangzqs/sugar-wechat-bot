@@ -12,13 +12,16 @@ func LoadConfig[T any]() (*T, error) {
 		return nil, fmt.Errorf("usage: %s <config-file>", os.Args[0])
 	}
 
-	cfgFile, err := os.ReadFile(os.Args[1])
+	cfgFile, err := os.Open(os.Args[1])
 	if err != nil {
 		return nil, err
 	}
+	defer cfgFile.Close()
 
 	var cfg T
-	if err = yaml.Unmarshal(cfgFile, &cfg); err != nil {
+	decoder := yaml.NewDecoder(cfgFile)
+	decoder.KnownFields(true) // Enable strict mode to catch unknown fields
+	if err = decoder.Decode(&cfg); err != nil {
 		return nil, err
 	}
 	return &cfg, nil

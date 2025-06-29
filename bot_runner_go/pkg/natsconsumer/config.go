@@ -18,7 +18,7 @@ func (c *Config) Validate() error {
 		c.Concurrency = 1
 	}
 	if c.PullMaxWait <= 0 {
-		c.PullMaxWait = 10 * time.Second
+		c.PullMaxWait = 1 * time.Second
 	}
 
 	if c.NatsURL == "" {

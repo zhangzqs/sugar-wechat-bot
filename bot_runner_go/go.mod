@@ -1,4 +1,4 @@
-module github.com/zhangzqs/sugar-wechat-bot/bot_worker
+module github.com/zhangzqs/sugar-wechat-bot/bot_runner_go
 
 go 1.24.4
 

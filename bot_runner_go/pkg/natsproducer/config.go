@@ -26,7 +26,7 @@ type Producer struct {
 	nc      *nats.Conn // NATS 连接
 }
 
-func NewProducer(cfg *Config) (*Producer, error) {
+func New(cfg *Config) (*Producer, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}

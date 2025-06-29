@@ -61,6 +61,14 @@ func init() {
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 }
 
+func MustNewLogger(cfg *Config) Logger {
+	logger, err := NewLogger(cfg)
+	if err != nil {
+		panic(fmt.Sprintf("failed to create logger: %v", err))
+	}
+	return *logger
+}
+
 func NewLogger(cfg *Config) (*Logger, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid logger config: %w", err)

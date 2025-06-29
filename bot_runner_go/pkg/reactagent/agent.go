@@ -17,7 +17,8 @@ import (
 )
 
 type ReactAgent struct {
-	agent *react.Agent
+	agent        *react.Agent
+	systemPrompt string
 }
 
 func New(ctx context.Context, cfg *Config) (ret *ReactAgent, err error) {
@@ -75,15 +76,13 @@ func New(ctx context.Context, cfg *Config) (ret *ReactAgent, err error) {
 		allTools = append(allTools, mcpTools...)
 	}
 
-	allTools = append(allTools, &NoUsedTool{})
+	if len(allTools) == 0 {
+		// 如果没有MCP工具，则添加一个占位符工具
+		logger.Warn().Msg("No MCP tools found, using placeholder tool")
+		allTools = append(allTools, &PlaceHolderTool{})
+	}
 
 	agent, err := react.NewAgent(ctx, &react.AgentConfig{
-		MessageModifier: func(ctx context.Context, input []*schema.Message) []*schema.Message {
-			res := make([]*schema.Message, 0, len(input)+1)
-			res = append(res, schema.SystemMessage(cfg.SystemPrompt))
-			res = append(res, input...)
-			return res
-		},
 		MaxStep:          10,
 		ToolCallingModel: chatModel,
 		ToolsConfig: compose.ToolsNodeConfig{
@@ -96,7 +95,8 @@ func New(ctx context.Context, cfg *Config) (ret *ReactAgent, err error) {
 	}
 
 	ret = &ReactAgent{
-		agent: agent,
+		agent:        agent,
+		systemPrompt: cfg.SystemPrompt,
 	}
 	return
 }
@@ -107,10 +107,8 @@ func (r *ReactAgent) Question(ctx context.Context, question string) (string, err
 
 	// 使用 ReactAgent 处理用户问题
 	answer, err := r.agent.Generate(ctx, []*schema.Message{
-		{
-			Role:    schema.User,
-			Content: question,
-		},
+		schema.SystemMessage(r.systemPrompt),
+		schema.UserMessage(question),
 	}, agent.WithComposeOptions(compose.WithCallbacks(&LoggerCallback{})))
 
 	if err != nil {
@@ -122,15 +120,15 @@ func (r *ReactAgent) Question(ctx context.Context, question string) (string, err
 	return answer.Content, nil
 }
 
-type NoUsedTool struct{}
+type PlaceHolderTool struct{}
 
-func (lt *NoUsedTool) Info(ctx context.Context) (*schema.ToolInfo, error) {
+func (lt *PlaceHolderTool) Info(ctx context.Context) (*schema.ToolInfo, error) {
 	return &schema.ToolInfo{
-		Name: "NoUsedTool",
+		Name: "PlaceHolderTool",
 		Desc: "这仅是一个占位符工具，请不要调用它",
 	}, nil
 }
 
-func (lt *NoUsedTool) InvokableRun(ctx context.Context, argumentsInJSON string, opts ...tool.Option) (string, error) {
+func (lt *PlaceHolderTool) InvokableRun(ctx context.Context, argumentsInJSON string, opts ...tool.Option) (string, error) {
 	return "", nil
 }
